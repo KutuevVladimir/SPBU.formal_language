@@ -15,7 +15,7 @@ git clone https://vkutuev@bitbucket.org/vkutuev/m4ri.git
 cd m4ri/
 autoreconf --install
 autoreconf --install
-./configure --enable-openmp
+# ./configure --enable-openmp
 sudo make install
 echo 'export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/lib"' >> $BASH_ENV
 cd ..
