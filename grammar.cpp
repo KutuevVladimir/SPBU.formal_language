@@ -4,7 +4,9 @@
 
 #include <fstream>
 #include <iostream>
+#include <ctime>
 #include "grammar.h"
+
 using namespace std;
 
 Grammar::Grammar() = default;
@@ -12,7 +14,7 @@ Grammar::Grammar() = default;
 void Grammar::read(const string &filename) {
     ifstream input(filename);
 
-    string line ;
+    string line;
     while (getline(input, line)) {
         unsigned long divider = line.find(' ');
         string head = line.substr(0, divider);
@@ -32,29 +34,8 @@ void Grammar::read(const string &filename) {
     input.close();
 }
 
-void Grammar::print() {
-    cout << "Nonterminals: ";
-    for (auto &nonterminal : nonterminals) {
-        cout << nonterminal.first << ' ';
-    }
-    cout << '\n';
-    cout << "Terminals: ";
-    for (auto &terminal : terminals) {
-        cout << terminal.first << ' ';
-    }
-    cout << '\n';
-    cout << "Prods:\n";
-    for (auto &prod : rules) {
-        cout << prod.first.first << ' ' << prod.first.second << " <- ";
-        for (auto &head : prod.second) {
-            cout << head << ", ";
-        }
-       cout << '\n';
-    }
-    cout << '\n';
-}
-
-void Grammar::intersection_with_graph(int n, graph_t graph, char* filename) {
+void Grammar::intersection_with_graph(int n, graph_t graph, char *filename) {
+    clock_t begin = clock();
     for (auto &nonterminal: nonterminals) {
         nonterminal.second = mzd_init(n, n);
     }
@@ -67,39 +48,55 @@ void Grammar::intersection_with_graph(int n, graph_t graph, char* filename) {
 
     bool finished = false;
 
+    std::map<std::string, bool> changed_previous; // change optimization
+    std::map<std::string, bool> changed_next; // change optimization
+    for (auto &nonterminal: nonterminals) { // change optimization
+        changed_next[nonterminal.first] = true; // change optimization
+    } // change optimization
     while (!finished) {
         finished = true;
+        for (auto &nonterminal: nonterminals) { // change optimization
+            changed_previous[nonterminal.first] = changed_next[nonterminal.first]; // change optimization
+            changed_next[nonterminal.first] = false; // change optimization
+        } // change optimization
         for (auto &rule: rules) {
-            mzd_t* mul_result = mzd_sr_mul_m4rm(nullptr, nonterminals[rule.first.first], nonterminals[rule.first.second], 0);
-            for (auto &head: rule.second) {
-                mzd_t* new_head = mzd_or(nullptr, nonterminals[head], mul_result);
-                if (!mzd_equal(nonterminals[head], new_head)) {
-                    mzd_free(nonterminals[head]);
-                    nonterminals[head] = new_head;
-                    finished = false;
-                } else {
-                    mzd_free(new_head);
+            if (changed_previous[rule.first.first] || changed_previous[rule.first.second]) { // change optimization
+                mzd_t *mul_result = mzd_sr_mul_m4rm(nullptr, nonterminals[rule.first.first],
+                                                    nonterminals[rule.first.second], 0);
+                for (auto &head: rule.second) {
+                    mzd_t *new_head = mzd_or(nullptr, nonterminals[head], mul_result);
+                    if (!mzd_equal(nonterminals[head], new_head)) {
+                        mzd_free(nonterminals[head]);
+                        nonterminals[head] = new_head;
+                        changed_next[head] = true; // change optimization
+                        finished = false;
+                    } else {
+                        mzd_free(new_head);
+                    }
                 }
-            }
-            mzd_free(mul_result);
+                mzd_free(mul_result);
+            } // change optimization
         }
     }
+    clock_t end = clock();
+    cout << (int)(double(end - begin) / CLOCKS_PER_SEC * 1000) << endl;
 
-    ofstream outputfile;
-    outputfile.open(filename);
+    ofstream output_file;
+    output_file.open(filename);
     for (auto &nonterminal: nonterminals) {
-        outputfile << nonterminal.first;
+        output_file << nonterminal.first;
         for (int i = 0; i < n; ++i) {
             for (int j = 0; j < n; ++j) {
                 if (mzd_read_bit(nonterminal.second, i, j) != 0) {
-                    outputfile << ' ' << i << ' ' << j;
+                    output_file << ' ' << i << ' ' << j;
                 }
             }
         }
-        outputfile << endl;
+        output_file << endl;
     }
-    outputfile.close();
+    output_file.close();
 }
+
 Grammar::~Grammar() {
     for (auto &nonterminal: nonterminals) {
         mzd_free(nonterminal.second);

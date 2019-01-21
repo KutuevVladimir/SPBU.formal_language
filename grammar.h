@@ -20,7 +20,7 @@ class Grammar {
         Grammar();
         ~Grammar();
         void read(const std::string &filename);
-        void print();
+//        void print();
     void intersection_with_graph(int n, graph_t graph, char* filename);
 
     private:
